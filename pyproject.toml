@@ -5,7 +5,18 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "beautifulsoup4>=4.15.0",
     "ipykernel>=7.3.0",
     "pip>=26.1.2",
     "polars>=1.43.0",
+    "requests>=2.34.2",
 ]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.2",
+    "ruff>=0.16.10",
+    "ty>=0.0.84",
+]
+[tool.uv]
+link-mode = "copy"
