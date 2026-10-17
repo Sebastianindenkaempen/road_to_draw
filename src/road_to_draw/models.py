@@ -54,11 +54,15 @@ class TransfermarktScraper(DataLoader):
         """
         mw_string = mw_string.replace(",", ".")
 
+        mrd_pattern = re.compile(r"\bMrd\. €", re.IGNORECASE)
         mio_pattern = re.compile(r"\bMio\. €", re.IGNORECASE)
         tsd_pattern = re.compile(r"\bTsd\. €", re.IGNORECASE)
         multiplier = 0
 
-        if mio_pattern.search(mw_string):
+        if mrd_pattern.search(mw_string):
+            multiplier = 1000000000
+            mw = re.sub(mrd_pattern, "", mw_string)
+        elif mio_pattern.search(mw_string):
             multiplier = 1000000
             mw = re.sub(mio_pattern, "", mw_string)
         elif tsd_pattern.search(mw_string):
