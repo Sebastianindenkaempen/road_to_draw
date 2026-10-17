@@ -142,7 +142,6 @@ class TransfermarktScraper(DataLoader):
             )
 
         clubs = response.json()["clubs"]
-
         df = pl.DataFrame(
             {
                 "id": [club["id"] for club in clubs],
@@ -151,6 +150,38 @@ class TransfermarktScraper(DataLoader):
                 "season_to": season_id + 1,
             }
         )
-
         df.with_columns(pl.col("id").cast(pl.Int32))
+
         return df
+
+    def get_club_player(
+        self, season_id: int, competition_id: str = "L1"
+    ) -> pl.DataFrame:
+
+        api_url = f"https://transfermarkt-api.fly.dev/clubs/{competition_id}/players?season_id={season_id}"
+        response = requests.get(api_url)
+        if response.status_code == 200:
+            logger.info("Data successfully recieved")
+        else:
+            raise ConnectionError(
+                f"Connection failed response code: {response.status_code}"
+            )
+
+        players = response.json()["players"]
+        df = pl.DataFrame(
+            {
+                "id": [p["id"] for p in players],
+                "name": [p["name"] for p in players],
+                "position": [p["position"] for p in players],
+                "shirt_number": [p["shirtNumber"] for p in players],
+                "is_captain": [p["isCaptain"] for p in players],
+                "date_of_birth": [p["dateOfBirth"] for p in players],
+                "nationality": [p["nationality"] for p in players],
+                "height": [p["height"] for p in players],
+                "joined_on": [p["joinedOn"] for p in players],
+            }
+        )
+
+        return df
+
+    # def get_player_market_values(self, season_id: int, competition_id: str = "L1") -> pl.DataFrame:
