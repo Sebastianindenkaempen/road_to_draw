@@ -37,10 +37,6 @@ class TransfermarktScraper(DataLoader):
         }
         self.BASE_URL = "https://www.transfermarkt.de/bundesliga/startseite/"
 
-    def scrape_market_values(self, competition_id: str, season: int) -> pl.DataFrame:
-
-        return pl.DataFrame()
-
     def get_value_from_string(self, mw_string) -> float:
         """
         Strips raw market value from transfermarkt and
@@ -131,4 +127,30 @@ class TransfermarktScraper(DataLoader):
             .with_columns(season_to=season_id + 1)
         )
 
+        return df
+
+    def get_club_ids(self, season_id: int, competition_id: str = "L1") -> pl.DataFrame:
+
+        api_url = f"https://transfermarkt-api.fly.dev/competitions/{competition_id}/clubs?season_id={season_id}"
+
+        response = requests.get(api_url)
+        if response.status_code == 200:
+            logger.info("Data successfully recieved")
+        else:
+            raise ConnectionError(
+                f"Connection failed response code: {response.status_code}"
+            )
+
+        clubs = response.json()["clubs"]
+
+        df = pl.DataFrame(
+            {
+                "id": [club["id"] for club in clubs],
+                "name": [club["name"] for club in clubs],
+                "season_from": season_id,
+                "season_to": season_id + 1,
+            }
+        )
+
+        df.with_columns(pl.col("id").cast(pl.Int32))
         return df
