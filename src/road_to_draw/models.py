@@ -184,4 +184,26 @@ class TransfermarktScraper(DataLoader):
 
         return df
 
-    # def get_player_market_values(self, season_id: int, competition_id: str = "L1") -> pl.DataFrame:
+    def get_player_market_values(self, player_id: int) -> pl.DataFrame:
+
+        api_url = f"https://transfermarkt-api.fly.dev/players/{player_id}/market_value"
+        response = requests.get(api_url)
+        if response.status_code == 200:
+            logger.info("Data successfully recieved")
+        else:
+            raise ConnectionError(
+                f"Connection failed response code: {response.status_code}"
+            )
+
+        market_values = response.json()["marketValueHistory"]
+        df = pl.DataFrame(
+            {
+                "player_id": player_id,
+                "age": [m["age"] for m in market_values],
+                "date": [m["date"] for m in market_values],
+                "club_id": [m["clubId"] for m in market_values],
+                "market_value": [m["marketValue"] for m in market_values],
+            }
+        )
+
+        return df
