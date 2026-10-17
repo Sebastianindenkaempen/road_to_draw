@@ -85,13 +85,17 @@ class TransfermarktScraper(DataLoader):
         clubs = []
         for row in table.find_all("tr", recursive=False):
             name_elem = row.select_one("td.hauptlink a")
-            value_elem = row.select_one("td.rechts a") or row.select_one("td.rechts")
+            value_elem = row.select_one("td.rechts a")
+            avg_value = row.select_one("td.rechts")
 
             if name_elem and value_elem:
                 clubs.append(
                     {
                         "club": name_elem.get_text(strip=True),
                         "total_market_value": value_elem.get_text(strip=True),
+                        "average_market_value": avg_value.get_text(strip=True)
+                        if avg_value
+                        else 0,
                     }
                 )
 
@@ -103,11 +107,24 @@ class TransfermarktScraper(DataLoader):
             .round(0)
             .cast(pl.Int64)
             .alias("total_market_value_new")
+        ).with_columns(
+            pl.col("average_market_value")
+            .map_elements(self.get_value_from_string, return_dtype=pl.Float64)
+            .round(0)
+            .cast(pl.Int64)
+            .alias("average_market_value_new")
         )
         df = (
             df.drop("total_market_value")
-            .with_columns(season_from=2025)
-            .with_columns(season_to=2026)
+            .drop("average_market_value")
+            .with_columns(
+                (pl.col("total_market_value_new") / pl.col("average_market_value_new"))
+                .round()
+                .cast(pl.Int16)
+                .alias("squad_size")
+            )
+            .with_columns(season_from=season_id)
+            .with_columns(season_to=season_id + 1)
         )
 
         return df
