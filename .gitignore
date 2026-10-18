@@ -1,3 +1,4 @@
 secrets.toml
 dev.ipynb
 src/road_to_draw/__pycache__/
+*.log 

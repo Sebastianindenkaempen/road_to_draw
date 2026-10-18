@@ -5,7 +5,7 @@ import polars as pl
 import requests
 from bs4 import BeautifulSoup
 from loguru import logger
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 
 class DataLoader:
@@ -28,6 +28,36 @@ class DataLoader:
             f"postgresql+psycopg://{user}:{password}@localhost:5432/road_to_draw_{db_env}"
         )
         return engine
+
+    def run_query(
+        self,
+        query: str,
+        secrets_path: str,
+        db_env: str,
+        params: dict | None = None,
+    ) -> pl.DataFrame:
+        """
+        Executes a SELECT query and returns the result as a Polars DataFrame.
+
+        Args:
+            query: SQL query, parameters as :name
+            secrets_path: path to secrets file
+            db_env: ["dev", "prod"]
+            params: optional query parameters, e.g. {"season": 2024}
+
+        Returns:
+            polars DataFrame
+        """
+        engine = self.get_db_connection(secrets_path, db_env)
+        try:
+            with engine.connect() as conn:
+                return pl.read_database(
+                    text(query),
+                    connection=conn,
+                    execute_options={"parameters": params} if params else None,
+                )
+        finally:
+            engine.dispose()
 
 
 class TransfermarktScraper(DataLoader):
@@ -150,15 +180,18 @@ class TransfermarktScraper(DataLoader):
                 "season_to": season_id + 1,
             }
         )
-        df.with_columns(pl.col("id").cast(pl.Int32))
+        df = df.with_columns(pl.col("id").cast(pl.Int32))
+
+        if df.shape[0] == 18:
+            logger.info(f"Received {df.shape[0]} rows for season {season_id}")
+        else:
+            logger.warning(f"Received {df.shape[0]} rows for season {season_id}")
 
         return df
 
-    def get_club_player(
-        self, season_id: int, competition_id: str = "L1"
-    ) -> pl.DataFrame:
+    def get_club_player(self, season_id: int, club_id: int) -> pl.DataFrame:
 
-        api_url = f"https://transfermarkt-api.fly.dev/clubs/{competition_id}/players?season_id={season_id}"
+        api_url = f"https://transfermarkt-api.fly.dev/clubs/{club_id}/players?season_id={season_id}"
         response = requests.get(api_url)
         if response.status_code == 200:
             logger.info("Data successfully recieved")
@@ -170,17 +203,29 @@ class TransfermarktScraper(DataLoader):
         players = response.json()["players"]
         df = pl.DataFrame(
             {
+                "club_id": club_id,
                 "id": [p["id"] for p in players],
                 "name": [p["name"] for p in players],
                 "position": [p["position"] for p in players],
                 "shirt_number": [p["shirtNumber"] for p in players],
                 "is_captain": [p["isCaptain"] for p in players],
                 "date_of_birth": [p["dateOfBirth"] for p in players],
-                "nationality": [p["nationality"] for p in players],
+                "nationality": [", ".join(p["nationality"] or []) for p in players],
                 "height": [p["height"] for p in players],
                 "joined_on": [p["joinedOn"] for p in players],
+                "season_from": season_id,
+                "season_to": season_id + 1,
             }
         )
+
+        if df.shape[0] > 0:
+            logger.info(
+                f"received {df.shape[0]} player for club id {club_id} and season {season_id}"
+            )
+        else:
+            logger.warning(
+                f"received {df.shape[0]} players for club id {club_id} and season {season_id}"
+            )
 
         return df
 
@@ -205,5 +250,12 @@ class TransfermarktScraper(DataLoader):
                 "market_value": [m["marketValue"] for m in market_values],
             }
         )
-
+        if df.shape[0] > 0:
+            logger.info(
+                f"received {df.shape[0]} market values for player id {player_id}"
+            )
+        else:
+            logger.warning(
+                f"received {df.shape[0]} market values for player id {player_id}"
+            )
         return df
